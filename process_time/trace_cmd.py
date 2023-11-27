@@ -22,6 +22,8 @@ class TraceCmd():
         return cmd
 
     def build_report_cmd(self) -> list:
-        #cmd = ['trace-cmd', 'report', '>', ]
         cmd = "trace-cmd report > {}".format(self.report_file)
         return cmd
+    
+    def get_report_file(self) -> str:
+        return self.report_file

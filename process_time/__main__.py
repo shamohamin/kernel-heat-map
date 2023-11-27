@@ -1,4 +1,3 @@
-from trace_cmd import *
 from terminal import *
 import argparse
 
@@ -12,5 +11,6 @@ if __name__ == '__main__':
     args = parse_args()
     pid = args.p
     tc = TraceCmd(pid)
-    terminal = Terminal(tc)
+    parser = Parser()
+    terminal = Terminal(tc, parser)
     terminal.run()
