@@ -141,7 +141,6 @@ typedef struct _allocation_info_t {
 typedef struct _submit_data_t {
     u32 pid;
     u32 tid;
-    // u32 alloc_type;
 
     u64 allocated_size; 
     u64 allocation_time;
@@ -187,58 +186,8 @@ void __retrive_process_info(u32 *pid, u32 *tid) {
 }
 
 
-static __always_inline 
-int __enter_handler_alloc_kernel_funcs(struct pt_regs *ctx, struct kmem_cache *cachep) {
-    allocation_key_t key;
-    allocation_info_t *alloc_info;
-
-    u64 curr_time, diff_time;    
-
-    __retrive_process_info(&(key.pid), &(key.tid));
-    // uintptr_t size = PT_REGS_RC(ctx);
-    int size = cachep->object_size;
-
-    // bpf_trace_printk("size: %d", ksize((void *)size));    
-   alloc_info = __allocation_kernel_data.lookup(&(key.pid));
-
-    if (!alloc_info) { // data not found
-        allocation_info_t ait = {
-            .buff_counter = 1
-        };
-        ait.process_info.process_identifier = key;
-
-        bpf_get_current_comm(ait.process_info.name, sizeof(ait.process_info.name));
-
-        ait.requested_size = size;
-        ait.allocation_time = bpf_ktime_get_ns();
-        __allocation_kernel_data.insert(&(key.pid), &ait);
-    } else { 
-        curr_time = bpf_ktime_get_ns();
-        alloc_info->requested_size += size;
-        diff_time = curr_time - alloc_info->allocation_time;
-        alloc_info->buff_counter++;
-        // u32 a = 1;
-
-        // if (diff_time > SAMPLE_RATE) {
-            alloc_info->allocation_time = curr_time;
-            submit_data_t data = {
-                .pid = key.pid,
-                .tid = key.tid,
-                // .alloc_type = a,
-                .allocation_time = curr_time,
-                .allocated_size = alloc_info->requested_size,
-                .number_memory_allocation = alloc_info->buff_counter,
-            };
-            bpf_get_current_comm(data.name, sizeof(data.name));
-            __alloc_buffer_KERNEL.perf_submit(ctx, &data, sizeof(submit_data_t));
-        // }
-    }
-    return 0;
-}
-
-
 static __always_inline
-int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size) {
+int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size, int alloc_type) {
     allocation_key_t key;
     allocation_info_t *alloc_info;
 
@@ -247,10 +196,10 @@ int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size) {
     __retrive_process_info(&(key.pid), &(key.tid));
     // __save_process_name(&key);
     
-    // if (alloc_type == USER) 
-    alloc_info = __allocation_user_data.lookup(&(key.pid));
-    // else 
-        // alloc_info = __allocation_kernel_data.lookup(&(key.pid));
+    if (alloc_type == USER) 
+        alloc_info = __allocation_user_data.lookup(&(key.pid));
+    else 
+        alloc_info = __allocation_kernel_data.lookup(&(key.pid));
 
     if (!alloc_info) { // data not found
         allocation_info_t ait = {
@@ -262,7 +211,11 @@ int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size) {
 
         ait.requested_size = size;
         ait.allocation_time = bpf_ktime_get_ns();
-        __allocation_user_data.insert(&(key.pid), &ait);
+        if (alloc_type == USER) 
+            __allocation_user_data.insert(&(key.pid), &ait);
+        else
+            __allocation_kernel_data.insert(&(key.pid), &ait);
+
     } else {
         curr_time = bpf_ktime_get_ns();
         alloc_info->requested_size += size;
@@ -271,6 +224,7 @@ int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size) {
 
         if (diff_time > SAMPLE_RATE) {
             alloc_info->allocation_time = curr_time;
+
             submit_data_t data = {
                 .pid = key.pid,
                 .tid = key.tid,
@@ -279,27 +233,23 @@ int __enter_handler_alloc_funcs(struct pt_regs *ctx, size_t size) {
                 .number_memory_allocation = alloc_info->buff_counter,
             };
             bpf_get_current_comm(data.name, sizeof(data.name));
-            __alloc_buffer_USER.perf_submit(ctx, &data, sizeof(submit_data_t));
+
+            if (alloc_type == USER) 
+                __alloc_buffer_USER.perf_submit(ctx, &data, sizeof(submit_data_t));
+            else
+                __alloc_buffer_KERNEL.perf_submit(ctx, &data, sizeof(submit_data_t));
+
         }
     }
 
     return 0;
 }
 
-
 int malloc_enter(struct pt_regs *ctx, size_t size) {
-    return __enter_handler_alloc_funcs(ctx, size);
-    // return 0;
+    return __enter_handler_alloc_funcs(ctx, size, USER);
 }
 
-int kmalloc_exit(struct pt_regs *ctx, struct kmem_cache *cachep) {
-    return __enter_handler_alloc_kernel_funcs(ctx, cachep);
+int kmem_cache_alloc_enter(struct pt_regs *ctx, struct kmem_cache *cachep) {
+    int size = cachep->object_size;
+    return __enter_handler_alloc_funcs(ctx, size, KERNEL);
 }
-
-/**
- *  
-*/
-
-// int malloc_exit(struct pt_regs *ctx) {
-//     return gen_alloc_exit(ctx);
-// }

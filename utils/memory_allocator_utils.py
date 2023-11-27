@@ -1,6 +1,6 @@
 # from bcc import BPF
 import ctypes as ct
-from data_collector_schema import DataCollector
+from .data_collector_schema import DataCollector
 
 TASK_COMM_LEN = 16
 
@@ -20,6 +20,7 @@ class MemoryAlloctor(DataCollector):
 
     def __init__(self) -> None:        
         super().__init__()
+        self.data = {}
 
     # def checkAllocationData(alloc_type: int):
         
@@ -40,8 +41,6 @@ class MemoryAlloctor(DataCollector):
         self.data[pid][tid][alloc_type]['allocated_size'].append(alloc_size)
 
 
-        
-
     def collect(self, perf_data, *args, **kwargs):
         parsed_data = ct.cast(
             perf_data,
@@ -60,7 +59,7 @@ class MemoryAlloctor(DataCollector):
                 tid: {
                     **self.__getDefaultValuesForThreads()
                 },
-                'process_name': parsed_data.name,
+                'process_name': parsed_data.name.decode('utf-8'),
             }
         
         thread_data = self.data[pid].get(tid, None)
@@ -75,4 +74,15 @@ class MemoryAlloctor(DataCollector):
             memory_allocation_type,
             parsed_data.allocated_size,
             parsed_data.allocation_time)
+        
+    
+    def save(self):
+        import os
+        import json
+        data_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        if not os.path.exists(data_folder):
+            os.mkdir(data_folder)
+
+        with open("memory_allocator.json", "w") as file:
+            json.dump(self.data, file)
     
