@@ -6,5 +6,5 @@ class DataCollector:
 
     def collect(self, perf_data, *args, **kwargs):
         pid = kwargs['pid']
-        pname = kwargs['name']
+        pname = kwargs['pname']
         self.pid_to_process_name[pid] = pname
