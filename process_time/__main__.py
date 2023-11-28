@@ -11,6 +11,6 @@ if __name__ == '__main__':
     args = parse_args()
     pid = args.p
     tc = TraceCmd(pid)
-    parser = Parser()
+    parser = Parser(pid)
     terminal = Terminal(tc, parser)
     terminal.run()

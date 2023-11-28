@@ -18,7 +18,7 @@ class TraceCmd():
         if(self.pid != None):
             cmd.append("-P {} ".format(self.pid))
         cmd.append('sleep')
-        cmd.append('0.1')
+        cmd.append('10')
         return cmd
 
     def build_report_cmd(self) -> list:
