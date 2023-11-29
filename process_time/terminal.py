@@ -9,14 +9,11 @@ class Terminal:
         self.parser = parser
 
     def run(self):
-        # self.record()
-        # self.report()
-        # self.parser.parse(self.trace_cmd.get_report_file())
+        self.record()
+        self.report()
         self.parser.execute()
         
-        #self.parse_file()
-        #self.parse_trace_text()
-
+    
     def record(self) -> None:
         cmd = self.trace_cmd.get_cmd(RECORD_CMD)
         subprocess.run(cmd)
