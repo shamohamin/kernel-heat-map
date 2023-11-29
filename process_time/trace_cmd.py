@@ -2,10 +2,11 @@ RECORD_CMD = 'record'
 REPORT_CMD = 'report'
 
 class TraceCmd():
-    def __init__(self, pid=None) -> None:
+    def __init__(self, pid=None, record_time='10') -> None:
         self.plugin = "function_graph"
         self.pid = pid
         self.report_file = "trace.report"
+        self.record_time = record_time
     
     def get_cmd(self, type: str) -> list:
         if(type == REPORT_CMD):
@@ -18,7 +19,7 @@ class TraceCmd():
         if(self.pid != None):
             cmd.append("-P {} ".format(self.pid))
         cmd.append('sleep')
-        cmd.append('10')
+        cmd.append('{}'.format(self.record_time))
         return cmd
 
     def build_report_cmd(self) -> list:
