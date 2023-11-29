@@ -9,6 +9,10 @@ FUNCTION_ENTRY = 'funcgraph_entry:'
 FUNCTION_EXIT = 'funcgraph_exit:'
 ROOT_SPACE_COUNT = 2
 
+TIME_KEY = "time_in_us"
+PARENT_KEY = "parent"
+
+
 class SplitTracingFile:
     def __init__(self, file_content, number_of_threads = 2) -> None:
         self.file_content = file_content
@@ -75,7 +79,7 @@ class SplitTracingFile:
 class ParserThread(Thread):
     def __init__(self, pid, file_content, parse_range: tuple, *args, **kwargs) -> None:
         Thread.__init__(self, *args, **kwargs)
-        self.times_hash_map = {}
+        self.fn_hash_map = {}
         self.pid = int(pid)
         self.parse_range = parse_range
         self.file_content = file_content
@@ -86,8 +90,16 @@ class ParserThread(Thread):
     def run(self) -> None:
         self.__parse_trace_text()
 
-    def __add_time(self, key, time):
-        self.times_hash_map[key] = self.times_hash_map.get(key, 0.) + time
+    def __add_fn_entry(self, key, time, parent_name, parent_depth):
+        fn_value = self.fn_hash_map.get(key, None)
+        if fn_value is None:
+            self.fn_hash_map[key] = {
+                TIME_KEY: time,
+                PARENT_KEY: set([f'{parent_name}-{parent_depth}'])
+            }
+        else:
+            self.fn_hash_map[key][TIME_KEY] += time
+            self.fn_hash_map[key][PARENT_KEY].add(f'{parent_name}-{parent_depth}')
 
     def __check_time_usage(self, timepart):
         try:
@@ -95,11 +107,14 @@ class ParserThread(Thread):
         except:
             return float(timepart[5])
 
-    def __parse_trace_text(self, saveTree = False):
+    def __get_function_name(self, fn_name: str):
+        return re.sub(r'(\(|\))', '', fn_name)
+
+    def __parse_trace_text(self):
         if len(self.file_content) == 0:
             raise ValueError('Trace is empty')
         
-        root = 'root'
+        root = Node('root')
         current_parent = root
         function_part = None
         time_stamp_part = None
@@ -120,15 +135,16 @@ class ParserThread(Thread):
                 continue
             
             if(FUNCTION_OPEN in function_part):
-                function_name = function_part[0]
+                function_name = self.__get_function_name(function_part[0])
                 node = Node(function_name, parent=current_parent, time=0.0)
                 current_parent = node
 
             elif(FUNCTION_ENTRY in time_stamp_part):
-                function_name = function_part[0][:-1]
+                function_name = self.__get_function_name(function_part[0][:-1])
                 time = self.__check_time_usage(time_stamp_part)
                 node = Node(function_name, parent=current_parent, time=time)
-                self.__add_time(key=str(function_name), time=time)
+                self.__add_fn_entry(key=str(function_name), time=time,
+                                     parent_name=current_parent.name, parent_depth=current_parent.depth)
 
             elif(FUNCTION_EXIT in time_stamp_part):
                 if current_parent == root:
@@ -136,19 +152,9 @@ class ParserThread(Thread):
 
                 time = self.__check_time_usage(time_stamp_part)
                 current_parent.time = time
-                self.__add_time(key=str(current_parent.name), time=time)
+                self.__add_fn_entry(key=str(current_parent.name), time=time,
+                                     parent_name=current_parent.parent.name, parent_depth=current_parent.depth)
                 current_parent = current_parent.parent
-
-        if saveTree:
-            with open("a.json", "w") as file:
-                json.dump(self.times_hash_map, file, indent=4)
-
-        if saveTree:
-            with open("afrin.txt", "w") as file:
-                import sys
-                sys.stdout = file
-                sys.stdout.write(str(RenderTree(root)))
-                sys.stdout.flush()
 
 
 class Parser:
@@ -157,11 +163,16 @@ class Parser:
         self.number_of_threads = number_of_threads
         self.pid = pid
         self.__trace_splinter = None
-        self.__aggeregated_times = {}
+        self.__aggeregated_fn_entries = {}
     
-    def __aggregate_times(self, time_hash_map: dict):
-        for key in time_hash_map.keys():
-            self.__aggeregated_times[key] = self.__aggeregated_times.get(key, 0.) + time_hash_map[key]
+    def __aggregate_times(self, fn_entry: dict):
+        for key in fn_entry.keys():
+            fn_value = self.__aggeregated_fn_entries.get(key, None)
+            if fn_value is None:
+                self.__aggeregated_fn_entries[key] = fn_entry[key]
+            else:
+                self.__aggeregated_fn_entries[key][TIME_KEY] += fn_entry[key][TIME_KEY]
+                self.__aggeregated_fn_entries[key][PARENT_KEY].union(fn_entry[key][PARENT_KEY])
                 
     def __read_file(self):
         with open(self.filename, 'r') as f:
@@ -184,9 +195,16 @@ class Parser:
 
         for parser in parsers:
             assert type(parser) is ParserThread 
-            self.__aggregate_times(parser.times_hash_map)
-    
+            self.__aggregate_times(parser.fn_hash_map)
+
+
+        class SetEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, set):
+                    return list(obj)
+                return json.JSONEncoder.default(self, obj)
+        
         with open("b.json", "w") as file:
-            json.dump(self.__aggeregated_times, file, indent=4)
+            json.dump(self.__aggeregated_fn_entries, file, indent=4, cls=SetEncoder)
 
         
