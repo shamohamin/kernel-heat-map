@@ -7,6 +7,7 @@
 #include <map>
 #include "utils.h"
 #include "tree.h"
+#include <chrono>
 
 
 // #define DEBUG 
@@ -18,10 +19,10 @@ int main(int argc, char *argv[]) {
     // }
 
     std::string filename = "../process_time/trace.report";
-    std::string pidd = "1134987";
+    std::string pidd = "2659";
 
     // std::cout << "Hello, World!" << std::endl;
-    int pid = 1134987;
+    int pid = 2659;
 
     std::ifstream file(filename);
     std::vector<std::string> lines;
@@ -38,12 +39,15 @@ int main(int argc, char *argv[]) {
 
     ParsedLine ** parsedLines = (ParsedLine **) malloc(sizeof(ParsedLine *) * lines.size());
 
-    // omp_set_num_threads(140);
+    auto start = std::chrono::high_resolution_clock::now();
+    omp_set_num_threads(140);
     #pragma omp parallel for 
     for (int i = 0; i < lines.size(); i++) {
-        parsedLines[i] = parseLine(lines.at(i), pid);
+        parsedLines[i] = parseLineNoRegex(lines.at(i), pid);
     }
-
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Time taken to parse lines: " << elapsed.count() << " s\n";
 
     // parsedLines.shrink_to_fit();
 #if DEBUG
@@ -67,9 +71,9 @@ int main(int argc, char *argv[]) {
 	// 	std::cout << "File not created!";
 	// }
     
-    vitualizeTree(root);
+    // vitualizeTree(root);
 
-    // std::string tmp = JsonSerializable::seriliaze(root);
-    // std::cout << tmp << "\n";
+    std::string tmp = JsonSerializable::seriliaze(root);
+    std::cout << tmp << "\n";
     return 0;
 }

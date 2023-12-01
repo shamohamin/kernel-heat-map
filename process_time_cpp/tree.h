@@ -40,41 +40,6 @@ class Node: public JsonSerializable {
 
         return data;
     }
-
-    // void getJsonData1(std::fstream& file, bool lastChild = false) {
-    //     // visited[this->name] = true;
-    //     // std::string baseString = "{\"name\": \"" + name + "\",\n";
-    //     // baseString += "\"time\": " + std::to_string(time) + ",";
-    //     file << "{\"name\": \"" + name + "\",\n";
-    //     file << "\"time\": " + std::to_string(time) + ",";
-    //     if (children.size() != 0) {
-    //         // baseString += "\"children\": [ ";
-    //         file << "\"children\": [ ";
-    //         for (int i = 0 ; i < children.size(); i++) {
-    //             // auto it = visited.find(children[i]->name);
-    //             // if (it == visited.end()) 
-    //                 children[i]->getJsonData1(file, i == (children.size() - 1));
-    //         }
-
-    //         //  baseString += "]\n";
-    //         file << "]\n";
-    //     }else {
-    //         // baseString += "children: []\n";
-    //         file << "\"children\": []\n";
-    //     }
-
-    //     // if (depth == 0)
-    //         // file << "}";
-    //     // else
-    //     if (!lastChild)
-    //         file << "},";
-    //     else
-    //         file << "}";
-    //     // baseString += "}";
-    //     // visited.erase(this->name);
-    //     // return baseString;
-    // }
-
 };
 
 
@@ -104,22 +69,40 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
     Node *root = new Node("root", 0, 0.0, nullptr);
     std::vector<Node *> stack;
     stack.push_back(root);
+    int a{};
+    bool handlingDrops{};
+    int lastDepth{};
 
 #if DEBUG
     std::cout << "Generating tree " << numLines << std::endl;
 #endif
+    int i = 0;
+    for (i = 0; i < numLines; ++i) {
+        auto pl = parsedLines[i];
 
-    for (int i = 0; i < numLines; ++i) {
-        if (parsedLines[i] == nullptr) continue;
+        if (pl == nullptr) continue;
+        if (pl->name == "DROPPED") {
+            handlingDrops = true;
+            continue;
+        }
+        if (handlingDrops) {
+            if (pl->depth == lastDepth) {
+                handlingDrops = false;
+            }
+            else {
+                continue;
+            }
+        }
         Node *me{nullptr};
 #if DEBUG
-        std::cout << i + 1 << parsedLines[i]->name << std::endl;
+        std::cout << i + 1 << pl->name << std::endl;
 #endif
-        auto pl = parsedLines[i];
+        lastDepth = pl->depth;
         if (pl->isEntry) {
             if (stack.empty()) continue; // EVENTS DROPPED 
             
             auto supposedParent = stack.back();
+
             if (supposedParent == nullptr) continue;
 
             Node *me{nullptr};
@@ -148,11 +131,21 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
                 node->time += pl->time;
             }
         } else {
-            if (stack.empty()) continue; // EVENTS DROPPED
+            if (stack.empty()) {// EVENTS DROPPED
+                // while (parsedLines[i] != nullptr && parsedLines[i]->depth != 2) {
+                //     i++;
+                // }
+                // i -= 1;
+                // stack.push_back(root);
+                // continue;
+            }
 
             Node *node = stack.back();
             stack.pop_back();
             node->time += pl->time;
+            if (node->name == "root") {
+                a += 1;
+            }
         }
     }
 

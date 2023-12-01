@@ -59,6 +59,97 @@ ParsedLine *parseLine(std::string& line, int pid) {
     return procPid == pid ? pl : nullptr;
 }
 
+std::pair<std::vector<std::string>, int> splitString(const std::string& str) {
+    std::vector<std::string> temp;
+    std::vector<std::string> result;
+    size_t start = 0;
+    size_t end = str.find(' ');
+
+    while (end != std::string::npos) {
+        // Add the substring to the result vector
+        auto x = str.substr(start, end - start);
+
+        temp.push_back(x);
+
+        // Skip the delimiter
+        start = end + 1;
+        // Find the next occurrence of the delimiter
+        end = str.find(' ', start);
+    }
+
+    // Add the last part of the string
+    temp.push_back(str.substr(start));
+
+    int depth{};
+    bool checkingDepth{false};
+    for (int i = 0; i < temp.size(); i++) {
+        if (temp[i] != "" && temp[i] != " ") {
+            result.push_back(temp[i]);
+        }
+
+        if (temp[i] == "|") {
+            checkingDepth = true;
+
+        }
+
+        else if (checkingDepth && (temp[i].size() != 0)) {
+            checkingDepth = false;
+        }
+
+        if (checkingDepth && (temp[i].size() == 0)) {
+            depth++;
+        }
+        
+    }
+
+
+    return std::make_pair(result, depth);
+}
+
+ParsedLine *parseLineNoRegex(std::string& line, int pid) { 
+    ParsedLine *pl = new ParsedLine("", 0, 0);
+
+    if (line.find("DROPPED") != std::string::npos) {
+        pl->name = "DROPPED";
+        return pl;
+    }
+
+    std::string myPid{std::to_string(pid)};
+    auto x = splitString(line);
+    auto splitted = x.first; 
+    auto pidString = splitted[0];
+    
+    if (pidString.find(myPid) == std::string::npos) {
+        return nullptr;
+    }
+    auto depth = x.second;
+
+    if (splitted.size() == 7) {
+        pl->name = splitted[6];
+        pl->depth = depth;
+        pl->isEntry = splitted[3] == "funcgraph_entry:";
+    } else if (splitted.size() == 8) { 
+        pl->name = splitted[7];
+        pl->depth = depth;
+        pl->isEntry = splitted[3] == "funcgraph_entry:";
+        pl->time = std::stod(splitted[4]);
+    } else if (splitted.size() == 9) {
+        pl->name = splitted[8];
+        pl->depth = depth;
+        pl->isEntry = splitted[3] == "funcgraph_entry:";
+        pl->time = std::stod(splitted[5]);
+    } else {
+        std::cout << "SOMETHING IS WRONG" << std::endl;
+    }
+
+    if (pl->isEntry && pl->time == 0.0) {
+        pl->name = splitted[splitted.size() - 2];
+    }
+    
+
+    return pl;
+}
+
 class JsonSerializable {
 public:
     enum TypeDef {
