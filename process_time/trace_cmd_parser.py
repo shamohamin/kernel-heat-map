@@ -158,7 +158,7 @@ class ParserThread(Thread):
 
 
 class Parser:
-    def __init__(self, pid, filename, number_of_threads = 5) -> None:
+    def __init__(self, pid, filename, number_of_threads = 16) -> None:
         self.filename = filename
         self.number_of_threads = number_of_threads
         self.pid = pid

@@ -14,5 +14,9 @@ if __name__ == '__main__':
     record_time = args.t
     tc = TraceCmd(pid, record_time)
     parser = Parser(pid, tc.report_file)
-    terminal = Terminal(tc, parser)
+    # parser.execute()
+    tree_parser = TreeParser(pid, tc.report_file)
+    # print("Executing tree parser")
+    # tree_parser.execute()
+    terminal = Terminal(tc, parser, tree_parser)
     terminal.run()
