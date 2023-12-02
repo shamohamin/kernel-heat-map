@@ -89,7 +89,6 @@ std::pair<std::vector<std::string>, int> splitString(const std::string& str) {
 
         if (temp[i] == "|") {
             checkingDepth = true;
-
         }
 
         else if (checkingDepth && (temp[i].size() != 0)) {
@@ -103,7 +102,7 @@ std::pair<std::vector<std::string>, int> splitString(const std::string& str) {
     }
 
 
-    return std::make_pair(result, depth);
+    return std::make_pair(result, depth+1);
 }
 
 ParsedLine *parseLineNoRegex(std::string& line, int pid) { 
@@ -145,7 +144,6 @@ ParsedLine *parseLineNoRegex(std::string& line, int pid) {
     if (pl->isEntry && pl->time == 0.0) {
         pl->name = splitted[splitted.size() - 2];
     }
-    
 
     return pl;
 }
