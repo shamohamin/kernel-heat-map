@@ -62,6 +62,14 @@ int main(int argc, char *argv[]) {
         }
         parsedLinesPerCpu[parsedLines[i]->cpu].push_back(parsedLines[i]);
     }
+
+    Node **roots = (Node **) malloc(sizeof(Node *) * parsedLinesPerCpu.size());
+    std::cout << "Generating trees\n";
+    # pragma omp parallel for
+    for (int i = 0; i < parsedLinesPerCpu.size(); i++) {
+        roots[i] = generateTree(parsedLinesPerCpu[i].data(), parsedLinesPerCpu[i].size());
+    }
+    
     // std::fstream my_file;
 	// // my_file.open("my_file.json", std::ios::out);
 	// // if (!my_file) {
