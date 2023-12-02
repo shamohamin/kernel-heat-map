@@ -54,6 +54,12 @@ int main(int argc, char *argv[]) {
 
     std::unordered_map<int, std::vector<ParsedLine*>> parsedLinesPerCpu;
     for (int i = 0; i < lines.size(); i++) {
+        if (parsedLines[i] == nullptr) {
+            continue;
+        }
+        if (parsedLinesPerCpu.find(parsedLines[i]->cpu) == parsedLinesPerCpu.end()) {
+            parsedLinesPerCpu[parsedLines[i]->cpu] = std::vector<ParsedLine*>();
+        }
         parsedLinesPerCpu[parsedLines[i]->cpu].push_back(parsedLines[i]);
     }
     // std::fstream my_file;
