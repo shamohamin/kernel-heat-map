@@ -8,6 +8,7 @@
 #include "utils.h"
 #include "tree.h"
 #include <chrono>
+#include <unordered_map>
 
 
 // #define DEBUG 
@@ -49,61 +50,12 @@ int main(int argc, char *argv[]) {
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Time taken to parse lines: " << elapsed.count() << " s\n";
 
+    std::cout << "Separating lines by CPU\n";
 
-
-
-    #if DEBUG 
-    std::cout << "parsed lines before processing: " << lines.size() << std::endl;
-    #endif 
-    std::vector<ParsedLine *> parsedLinesProcessed;
-    parsedLinesProcessed.reserve(lines.size());
-    for (int i = 0; i < lines.size(); ++i) {
-        if (parsedLines[i] != nullptr) {
-            parsedLinesProcessed.push_back(parsedLines[i]);
-        }
+    std::unordered_map<int, std::vector<ParsedLine*>> parsedLinesPerCpu;
+    for (int i = 0; i < lines.size(); i++) {
+        parsedLinesPerCpu[parsedLines[i]->cpu].push_back(parsedLines[i]);
     }
-
-    parsedLinesProcessed.shrink_to_fit();
-    #if DEBUG
-    std::cout << "parsed lines after processing: " << parsedLinesProcessed.size() << std::endl;
-    #endif
-
-    std::vector<ParsedLine *> finalParsedLines;
-    finalParsedLines.reserve(parsedLinesProcessed.size());
-
-    bool ignoring{}; 
-    int lastDepth{};
-    for (int i = 0; i < parsedLinesProcessed.size(); ++i) {
-        auto pl = parsedLinesProcessed[i];
-        if (pl->name == "DROPPED") {
-            ignoring = true;
-            lastDepth = parsedLinesProcessed[i-1]->depth;
-            std::cout << "IGNORING HERE" << std::endl;
-            continue;
-        }
-        if (ignoring) {
-            if (pl->depth == lastDepth && pl->isEntry) {
-                ignoring = false;
-                lastDepth = 0;
-            }
-            continue;
-        }
-        std::cout << (pl->isEntry ? "en:" : "ex:");
-        for (int j = 0; j < pl->depth; ++j) {
-            std::cout << " ";
-        }
-        std::cout << pl->name << std::endl;
-        finalParsedLines.push_back(pl);
-    }
-
-
-
-    
-    // Node * root = generateTree(parsedLines, lines.size());
-#if DEBUG 
-    std::cout << "done generating tree" << std::endl;
-#endif
-
     // std::fstream my_file;
 	// // my_file.open("my_file.json", std::ios::out);
 	// // if (!my_file) {
