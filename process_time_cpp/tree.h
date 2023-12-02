@@ -1,16 +1,15 @@
 #pragma once
 
 #include <atomic>
+#include <iomanip>
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
-#include <iomanip>
-
-#include <map>
 
 #include "utils.h"
 
-class Node: public JsonSerializable {
+class Node : public JsonSerializable {
    public:
     std::string name{};
     int depth{};
@@ -19,7 +18,7 @@ class Node: public JsonSerializable {
     Node *parent{nullptr};
     std::atomic<bool> merged{};
 
-    Node(std::string name, int depth, double time, Node *parent): name{name}, depth{depth}, time{time}, parent{parent} {}
+    Node(std::string name, int depth, double time, Node *parent) : name{name}, depth{depth}, time{time}, parent{parent} {}
 
     void add_child(Node *child) {
         children.push_back(child);
@@ -29,11 +28,11 @@ class Node: public JsonSerializable {
         std::cout << name << " " << depth << " " << time << std::endl;
     }
 
-    virtual JsonSerializable::JSONType* getJsonData() { 
+    virtual JsonSerializable::JSONType *getJsonData() {
         JsonSerializable::JSONType *data = new JSONType;
-        JSONData *d1 = new JSONData{STRING, (std::uintptr_t)&this->name};
-        JSONData *d2 = new JSONData{DOUBLE, (std::uintptr_t)&this->time};
-        JSONData *d3 = new JSONData{VECTOR, (std::uintptr_t)&this->children};
+        JSONData *d1 = new JSONData{STRING, (std::uintptr_t) & this->name};
+        JSONData *d2 = new JSONData{DOUBLE, (std::uintptr_t) & this->time};
+        JSONData *d3 = new JSONData{VECTOR, (std::uintptr_t) & this->children};
         (*data)["name"] = d1;
         (*data)["time"] = d2;
         (*data)["children"] = d3;
@@ -41,7 +40,6 @@ class Node: public JsonSerializable {
         return data;
     }
 };
-
 
 void vitualizeTree(Node *curr) {
     std::stack<Node *> parentHolder;
@@ -59,7 +57,6 @@ void vitualizeTree(Node *curr) {
         for (int i = 0; i < temp->children.size(); ++i) {
             parentHolder.push(temp->children[i]);
         }
-
     }
 }
 
@@ -88,8 +85,7 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
         if (handlingDrops) {
             if (pl->depth == lastDepth) {
                 handlingDrops = false;
-            }
-            else {
+            } else {
                 continue;
             }
         }
@@ -99,8 +95,8 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
 #endif
         lastDepth = pl->depth;
         if (pl->isEntry) {
-            if (stack.empty()) continue; // EVENTS DROPPED 
-            
+            if (stack.empty()) continue;  // EVENTS DROPPED
+
             auto supposedParent = stack.back();
 
             if (supposedParent == nullptr) continue;
@@ -118,20 +114,20 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
             if (me != nullptr) {
                 node = me;
                 // supposedParent->add_child(node);
-            } else { 
+            } else {
                 node = new Node(pl->name, pl->depth, pl->time, supposedParent);
                 supposedParent->add_child(node);
             }
 
             if (pl->time == 0.0) {
                 // non-leaf node
-                stack.push_back(node);  
+                stack.push_back(node);
             } else {
                 // leaf node
                 node->time += pl->time;
             }
         } else {
-            if (stack.empty()) {// EVENTS DROPPED
+            if (stack.empty()) {  // EVENTS DROPPED
                 // while (parsedLines[i] != nullptr && parsedLines[i]->depth != 2) {
                 //     i++;
                 // }
@@ -149,5 +145,55 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
         }
     }
 
+    return root;
+}
+
+Node *generateTreeNoDrops(std::vector<ParsedLine *> &parsedLines) {
+    Node *root = new Node("root", 0, 0.0, nullptr);
+    std::vector<Node *> stack;
+    stack.push_back(root);
+
+    for (int i = 0; i < parsedLines.size(); ++i) {
+        auto pl = parsedLines[i];
+
+        if (pl == nullptr) continue;
+        if (pl->name == "DROPPED") {
+            std::cout << "PANIC" << std::endl;
+        }
+
+        if (pl->isEntry) {
+            auto supposedParent = stack.back();
+            if (supposedParent == nullptr) continue;
+            Node *me{nullptr};
+
+            for (auto &child : supposedParent->children) {
+                if (child->name.compare(pl->name) == 0) {
+                    me = child;
+                    break;
+                }
+            }
+
+            Node *node;
+            if (me != nullptr) {
+                node = me;
+                // supposedParent->add_child(node);
+            } else {
+                node = new Node(pl->name, pl->depth, pl->time, supposedParent);
+                supposedParent->add_child(node);
+            }
+
+            if (pl->time == 0.0) {
+                // non-leaf node
+                stack.push_back(node);
+            } else {
+                // leaf node
+                node->time += pl->time;
+            }
+        } else {
+            Node *node = stack.back();
+            stack.pop_back();
+            node->time += pl->time;
+        }
+    }
     return root;
 }

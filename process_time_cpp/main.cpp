@@ -53,21 +53,32 @@ int main(int argc, char *argv[]) {
     std::cout << "Separating lines by CPU\n";
 
     std::unordered_map<int, std::vector<ParsedLine*>> parsedLinesPerCpu;
+    std::vector<int> cpus;
     for (int i = 0; i < lines.size(); i++) {
         if (parsedLines[i] == nullptr) {
             continue;
         }
         if (parsedLinesPerCpu.find(parsedLines[i]->cpu) == parsedLinesPerCpu.end()) {
             parsedLinesPerCpu[parsedLines[i]->cpu] = std::vector<ParsedLine*>();
+            cpus.push_back(parsedLines[i]->cpu);
         }
         parsedLinesPerCpu[parsedLines[i]->cpu].push_back(parsedLines[i]);
     }
 
     Node **roots = (Node **) malloc(sizeof(Node *) * parsedLinesPerCpu.size());
+
     std::cout << "Generating trees\n";
     # pragma omp parallel for
-    for (int i = 0; i < parsedLinesPerCpu.size(); i++) {
-        roots[i] = generateTree(parsedLinesPerCpu[i].data(), parsedLinesPerCpu[i].size());
+    for (int i = 0; i < cpus.size(); i++) {
+        auto cpu = cpus.at(i);
+        if (parsedLinesPerCpu.find(cpu) == parsedLinesPerCpu.end()) {
+            continue;
+        }
+        if (parsedLinesPerCpu[cpu].size() == 0) {
+            roots[i] = nullptr;
+            continue;
+        }
+        roots[cpu] = generateTreeNoDrops(parsedLinesPerCpu[cpu]);
     }
     
     // std::fstream my_file;
@@ -80,5 +91,21 @@ int main(int argc, char *argv[]) {
 
     // std::string tmp = JsonSerializable::seriliaze(root);
     // std::cout << tmp << "\n";
+
+    std::cout << "{";
+    for (int i = 0; i < cpus.size(); i++) {
+        auto cpu = cpus.at(i);
+        auto root = roots[cpu];
+        std::cout << cpu << ": ";
+        if (root == nullptr) {
+            std::cout << "null";
+        } else {
+            std::cout << JsonSerializable::seriliaze(root);
+        }
+
+        if (i != cpus.size() - 1)
+            std::cout << ", ";
+    }
+    std::cout << "}\n";
     return 0;
 }
