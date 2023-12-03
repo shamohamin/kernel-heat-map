@@ -6,6 +6,16 @@
 #include <typeinfo>
 
 
+#include <cstdio>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <array>
+#include <set>
+
+#define LINUX_PATH_SEPERATOR '/'
+
+
 std::pair<std::vector<std::string>, int> splitString(const std::string &str) {
     std::vector<std::string> temp;
     std::vector<std::string> result;
@@ -50,6 +60,31 @@ std::pair<std::vector<std::string>, int> splitString(const std::string &str) {
     return std::make_pair(result, depth + 1);
 }
 
+
+std::vector<std::string> splitStringWithSeparator(const std::string &str, char seperator) {
+    std::vector<std::string> result;
+    size_t start = 0;
+    size_t end = str.find(seperator);
+
+    while (end != std::string::npos) {
+        // Add the substring to the result vector
+        auto x = str.substr(start, end - start);
+
+        result.push_back(x);
+
+        // Skip the delimiter
+        start = end + 1;
+        // Find the next occurrence of the delimiter
+        end = str.find(seperator, start);
+    }
+
+    // Add the last part of the string
+    result.push_back(str.substr(start));
+
+    return result;
+}
+
+
 class ParsedLine {
    public:
     std::string name{};
@@ -81,6 +116,22 @@ class ParsedLine {
 std::regex re{"^\\s*(\\S+)\\s*\\[(\\d+)\\]\\s*(\\d+\\.\\d+):\\s*(\\w+):\\s*(.*)\\s*\\|\\s*(.*)\\s*$"};
 std::regex number{"(\\d+\\.\\d+)"};
 std::regex pidre{"\\d+"};
+// std::regex nameReg{"[\(|\)|\{|\}|;]"};
+
+std::vector<std::string> unwantedChars{"(", ")", "{", "}", ";"};
+
+std::string cleanName(std::string name) {
+    std::string cleanedName{""};
+    for (int i = 0; i < name.size(); i++) {
+        std::string temp{name[i]};
+        if (std::find(unwantedChars.begin(), unwantedChars.end(), temp) != unwantedChars.end()) {
+            continue;
+        }
+        cleanedName += temp;
+    }   
+    return cleanedName;
+}
+
 
 ParsedLine *parseLine(std::string &line, int pid) {
     std::smatch matches;
@@ -99,7 +150,7 @@ ParsedLine *parseLine(std::string &line, int pid) {
         std::string name{matches[6]};
         std::string funcg{matches[4]};
         pl->time = time;
-        pl->name = name;
+        pl->name = cleanName(name);
         pl->isEntry = funcg == "funcgraph_entry";
 
         std::string proc{matches[1]};
@@ -143,18 +194,18 @@ ParsedLine *parseLineNoRegex(std::string &line, int pid) {
 
     if (splitted.size() == 7) {
         pl->cpuStr = splitted[1];
-        pl->name = splitted[6];
+        pl->name = cleanName(splitted[6]);
         pl->depth = depth;
         pl->isEntry = splitted[3] == "funcgraph_entry:";
     } else if (splitted.size() == 8) {
         pl->cpuStr = splitted[1];
-        pl->name = splitted[7];
+        pl->name = cleanName(splitted[7]);
         pl->depth = depth;
         pl->isEntry = splitted[3] == "funcgraph_entry:";
         pl->time = std::stod(splitted[4]);
     } else if (splitted.size() == 9) {
         pl->cpuStr = splitted[1];
-        pl->name = splitted[8];
+        pl->name = cleanName(splitted[8]);
         pl->depth = depth;
         pl->isEntry = splitted[3] == "funcgraph_entry:";
         pl->time = std::stod(splitted[5]);
@@ -163,11 +214,78 @@ ParsedLine *parseLineNoRegex(std::string &line, int pid) {
     }
 
     if (pl->isEntry && pl->time == 0.0) {
-        pl->name = splitted[splitted.size() - 2];
+        pl->name = cleanName(splitted[splitted.size() - 2]);
     }
 
     pl->processCpuStr();
     return pl;
+}
+
+// void extractingFunctionNames(Node *root, std::map<std::string, bool> &names) {
+//     std::stack<Node *> parentHolder;
+//     parentHolder.push(root);
+
+//     int spaces = 0;
+//     while (!parentHolder.empty()) {
+//         Node *temp = parentHolder.top();
+//         parentHolder.pop();
+
+//         if (names.find(temp->name) == names.end()) names[temp->name] = true; 
+
+//         for (int i = 0; i < temp->children.size(); ++i) {
+//             parentHolder.push(temp->children[i]);
+//         }
+//     }
+// }
+
+void writeNamesToFile(std::map<std::string, bool> &names) {
+    std::fstream my_file;
+	my_file.open("names.txt", std::ios::out);
+	if (!my_file) {
+		std::cout << "File not created!";
+	}
+
+    
+}
+
+std::string exec(const char* cmd) {
+    std::array<char, 128> buffer;
+    std::string result;
+    std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
+    if (!pipe) {
+        throw std::runtime_error("popen() failed!");
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
+        result += buffer.data();
+    }
+    return result;
+}
+
+
+std::set<std::string> queryCScope(std::string& name) {
+    // std::cout << name << "\n";
+    std::string baseCMD = "cd /home/amin/workspace/kernel-heat-map && cscope -d -l -L -1";
+    baseCMD += " " + name;
+    std::set<std::string> labels{};
+
+    std::string result = exec(baseCMD.c_str());
+    auto splitedLines = splitStringWithSeparator(result, '\n');
+
+    for (auto &line: splitedLines) {
+        if (line.size() == 0) continue;
+
+        auto splitedLinesComponents = splitStringWithSeparator(std::string{line}, ' ');
+        if (splitedLinesComponents.size() == 0) continue;
+        std::string pathName = splitedLinesComponents[0];
+        if (pathName.find("debian") != std::string::npos) continue;
+
+        auto pathComponents = splitStringWithSeparator(pathName, LINUX_PATH_SEPERATOR);
+        if (pathComponents.size() < 2) continue;
+        std::string cleanedLabel = pathComponents.at(pathComponents.size() - 2);
+        labels.insert(cleanedLabel);
+    }
+
+    return labels;    
 }
 
 class JsonSerializable {
@@ -175,7 +293,8 @@ class JsonSerializable {
     enum TypeDef {
         STRING,
         DOUBLE,
-        VECTOR
+        VECTOR,
+        STRING_VEC
     };
 
     struct JSONData {
@@ -218,6 +337,8 @@ class JsonSerializable {
                     baseString += seriliaze((*v)[i], i == v->size() - 1);
                 }
                 baseString += "]";
+            } else if ((*val).typedefinition == STRING_VEC) {
+                baseString += *((std::string *)(*val).actualdata);
             }
 
             index += 1;

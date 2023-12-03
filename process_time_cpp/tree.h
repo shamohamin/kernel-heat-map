@@ -6,8 +6,9 @@
 #include <map>
 #include <string>
 #include <vector>
-
+#include <set>
 #include "utils.h"
+#include <mutex>
 
 class Node : public JsonSerializable {
    public:
@@ -17,11 +18,16 @@ class Node : public JsonSerializable {
     std::vector<Node *> children{};
     Node *parent{nullptr};
     std::atomic<bool> merged{};
+    std::set<std::string> labels{};
 
     Node(std::string name, int depth, double time, Node *parent) : name{name}, depth{depth}, time{time}, parent{parent} {}
 
     void add_child(Node *child) {
         children.push_back(child);
+    }
+
+    void add_label(std::string label) {
+        labels.insert(label);
     }
 
     void print() {
@@ -30,12 +36,24 @@ class Node : public JsonSerializable {
 
     virtual JsonSerializable::JSONType *getJsonData() {
         JsonSerializable::JSONType *data = new JSONType;
+
+        std::string *labelSerialized = new std::string{"["};
+        int index = 0;
+        for (auto label: labels) {
+            (*labelSerialized) += "\"" + label + "\"";
+            if (index != labels.size() - 1) (*labelSerialized) += ",";
+            index++;
+        }
+        (*labelSerialized) += "]";
+
         JSONData *d1 = new JSONData{STRING, (std::uintptr_t) & this->name};
         JSONData *d2 = new JSONData{DOUBLE, (std::uintptr_t) & this->time};
         JSONData *d3 = new JSONData{VECTOR, (std::uintptr_t) & this->children};
+        JSONData *d4 = new JSONData{STRING_VEC, (std::uintptr_t) labelSerialized};
         (*data)["name"] = d1;
         (*data)["time"] = d2;
         (*data)["children"] = d3;
+        (*data)["labels"] = d4;
 
         return data;
     }
@@ -52,7 +70,10 @@ void vitualizeTree(Node *curr) {
 
         for (int i = 0; i < temp->depth; ++i)
             std::cout << " ";
-        std::cout << temp->name << "[" << temp->time << "]" << std::endl;
+        std::cout << temp->name << "[" << temp->time << "] ";
+        std::cout << "labels -> [";
+        for (auto &label: temp->labels) std::cout << label << ",";
+        std::cout << "]" << std::endl;
 
         for (int i = 0; i < temp->children.size(); ++i) {
             parentHolder.push(temp->children[i]);
@@ -103,13 +124,15 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
 
             Node *me{nullptr};
 
-            for (auto &child : supposedParent->children) {
+            for (int i = 0; supposedParent->children.size(); i++) {
+                Node *child = supposedParent->children[i];
+                if (child == nullptr) 
+                    continue;
                 if (child->name.compare(pl->name) == 0) {
-                    me = child;
+                    me = supposedParent->children[i];
                     break;
                 }
             }
-
             Node *node;
             if (me != nullptr) {
                 node = me;
@@ -127,15 +150,6 @@ Node *generateTree(ParsedLine **parsedLines, int numLines) {
                 node->time += pl->time;
             }
         } else {
-            if (stack.empty()) {  // EVENTS DROPPED
-                // while (parsedLines[i] != nullptr && parsedLines[i]->depth != 2) {
-                //     i++;
-                // }
-                // i -= 1;
-                // stack.push_back(root);
-                // continue;
-            }
-
             Node *node = stack.back();
             stack.pop_back();
             node->time += pl->time;
@@ -165,7 +179,9 @@ Node *generateTreeNoDrops(std::vector<ParsedLine *> &parsedLines) {
             auto supposedParent = stack.back();
             if (supposedParent == nullptr) continue;
             Node *me{nullptr};
-
+#if DEBUG
+            std::cout << i << " " << parsedLines[i] << supposedParent->name << "\n";
+#endif
             for (auto &child : supposedParent->children) {
                 if (child->name.compare(pl->name) == 0) {
                     me = child;
@@ -196,4 +212,45 @@ Node *generateTreeNoDrops(std::vector<ParsedLine *> &parsedLines) {
         }
     }
     return root;
+}
+
+void extractFunctionNames(Node *rootNode, std::map<std::string, bool>& functionCache) {
+    if (rootNode->name != "root") {
+        functionCache[rootNode->name] = true;
+    }
+
+    for(int i = 0; i < rootNode->children.size(); i++) {
+        extractFunctionNames(rootNode->children[i], functionCache);
+    }
+}
+
+
+void labelFunctions(Node *rootNode, std::map<std::string, bool>& functionName) {
+    bool shouldSearch = functionName.find(rootNode->name) == functionName.end();
+
+    if (rootNode->name != "root") {
+        std::set<std::string> labels;
+        if (shouldSearch) {
+            labels = queryCScope(rootNode->name);
+            for(auto label: labels) rootNode->add_label(label);
+            functionName[rootNode->name] = true;
+        }        
+    }
+
+    if (shouldSearch) {
+        for (auto &child: rootNode->children) {
+            labelFunctions(child, functionName);
+        }
+    }
+}
+
+
+void assignLabels(Node *root, std::map<std::string, std::set<std::string> >& nameToLabels) {
+    if(root->name != "root") {
+        root->labels = nameToLabels[root->name];
+    }
+
+    for(int i = 0; i < root->children.size(); i++) {
+        assignLabels(root->children[i], nameToLabels);
+    }
 }
