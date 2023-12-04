@@ -254,3 +254,15 @@ void assignLabels(Node *root, std::map<std::string, std::set<std::string> >& nam
         assignLabels(root->children[i], nameToLabels);
     }
 }
+
+void queryTreeForLabel(Node *root, const std::string &label, double &time) {
+    if (root->name != "root") {
+        if (root->labels.find(label) != root->labels.end()) {
+            time += root->time;
+        }
+    }
+
+    for(int i = 0; i < root->children.size(); i++) {
+        queryTreeForLabel(root->children[i], label, time);
+    }
+}

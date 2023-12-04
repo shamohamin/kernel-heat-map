@@ -1,22 +1,7 @@
 from bcc import BPF
 import ctypes as ct
 from utils.memory_allocator_utils import MemoryAlloctor
-
-TASK_COMM_LEN = 16
-
-# class MemoryDataStructure(ct.Structure):
-#     _fields_ = [
-#         ("pid", ct.c_uint32),
-#         ("tid", ct.c_uint32),
-#         ("stack_id", ct.c_ulonglong),
-#         ("allocated_size", ct.c_ulonglong),
-#         ("allocation_time", ct.c_ulonglong),
-#         ("number_memory_allocation", ct.c_ulonglong),
-#         # ("allocation_type", ct.c_uint32),
-#         # ("", ct.c_ulonglong),
-#         ("name", ct.c_char * TASK_COMM_LEN)
-#     ]
-
+import time
 
 memAllocator = MemoryAlloctor()
 
@@ -41,8 +26,14 @@ bpf["__alloc_buffer_KERNEL"].open_perf_buffer(
     )
 )
 
+start = time.time()
+
 while 1:
     try:
+        if time.time() - start >= 30:
+            memAllocator.save()
+            break
+    
         bpf.perf_buffer_poll()
     except:
         memAllocator.save()

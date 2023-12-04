@@ -146,5 +146,31 @@ int main(int argc, char *argv[]) {
             std::cout << ", ";
     }
     std::cout << "}\n";
+
+    std::vector<std::string> components;
+    for (auto item: labelCacheTime) {
+        components.push_back(item.first);
+    }
+
+    # pragma omp parallel for
+    for (int i = 0; i < components.size(); i++) {
+        double time{0.0};
+        std::string key = components.at(i);
+        for (int j = 0; j < cpus.size(); j++) {
+            auto cpu = cpus.at(j);
+            auto root = roots[cpu];
+            if (root != nullptr) {
+                queryTreeForLabel(root, key, time);
+            }
+        }
+        cacheGaurd.lock();
+            labelCacheTime[key] += time;
+        cacheGaurd.unlock();
+    }
+
+    for(auto &[key, val]: labelCacheTime) {
+        std::cout << key << ":" << val << "us" << "\n";
+    }
+
     return 0;
 }
