@@ -30,7 +30,7 @@ start = time.time()
 
 while 1:
     try:
-        if time.time() - start >= 30:
+        if time.time() - start >= 100:
             memAllocator.save()
             break
     

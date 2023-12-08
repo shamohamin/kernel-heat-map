@@ -15,9 +15,11 @@ class TraceCmd():
             return self.build_record_cmd()
     
     def build_record_cmd(self) -> list:
-        cmd = ['sudo', 'trace-cmd', 'record', "-p {} ".format(self.plugin)]
+        # -M FF
+        cmd = ['sudo', 'trace-cmd', 'record', "-p {} ".format(self.plugin), "-b 1000000", "-M FF"]
         if(self.pid != None):
             cmd.append("-P {} ".format(self.pid))
+        
         cmd.append('sleep')
         cmd.append('{}'.format(self.record_time))
         return cmd
